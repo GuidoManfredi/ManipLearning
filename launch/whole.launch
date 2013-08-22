@@ -1,0 +1,8 @@
+<launch>
+	roslaunch openni_launch openni.launch
+
+	<node pkg="segment_plans_objects" type="segment_plans_objects" name="table_objects_segmenter">
+		  <param name="source_topic" value="move_base/activate" />
+		  <param name="destination_topic" value="move_base_simple/goal" />
+	</node>
+</launch>

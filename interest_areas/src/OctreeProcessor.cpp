@@ -42,6 +42,11 @@ vector<Mat>	OctreeProcessor::get_interest_areas () {
 		slices.push_back(proj);
 	}
 	cout << "Found " << slices.size () << " slices." << endl;
+	for (size_t i = 0; i < slices.size(); ++i) {
+		cout << maxs[i]*resolution_ << " ";
+	}
+	cout << endl;
+
 	return slices;
 }
 
@@ -95,9 +100,9 @@ vector<point3d> OctreeProcessor::get_walls (vector<unsigned int> hist) {
 	unsigned int min_bin = hist.size()-1; // just before the ceiling
 	cout << "Walls bin : " << min_bin << ", with " << hist[min_bin] <<" elements." << endl;
 	
-	vector<point3d> slice_z = get_slice_z (min_bin);
-	//double min_z = 0.00, max_z = 2.2;
-	//vector<point3d> slice_z = get_slice_z (min_z, max_z);
+	//vector<point3d> slice_z = get_slice_z (min_bin);
+	double min_z = 1.9, max_z = 2.2;
+	vector<point3d> slice_z = get_slice_z (min_z, max_z);
 	vector<double> x, y;
 	for (size_t i = 0; i < slice_z.size(); ++i) {
 		x.push_back (slice_z[i].x());
@@ -138,15 +143,14 @@ vector<point3d> OctreeProcessor::get_slice_xy (vector<double> x, vector<double> 
   		OcTreeNode* node = tree->search(x[i], y[i], z);
   		if (node != NULL) {
 	  		if (tree->isNodeOccupied(node)) {
-  				slice.push_back (point3d(x[i], y[i], z));
-  				slice.push_back (point3d(x[i], y[i+1], z));
-  				slice.push_back (point3d(x[i], y[i-1], z));
-  				slice.push_back (point3d(x[i+1], y[i], z));
-  				slice.push_back (point3d(x[i+1], y[i+1], z));
-  				slice.push_back (point3d(x[i+1], y[i-1], z));
-  				slice.push_back (point3d(x[i-1], y[i], z));
-  				slice.push_back (point3d(x[i+1], y[i+1], z));
-  				slice.push_back (point3d(x[i-1], y[i-1], z));
+	  			/*
+	  			for (unsigned int k = 0; k < 5; ++k) {
+	  				for (unsigned int l = 0; l < 5; ++l) {
+	  					slice.push_back (point3d(x[i]+k*resolution_, y[i]+l*resolution_, z));
+	  				}
+	  			}
+	  			*/
+	  			slice.push_back (point3d(x[i], y[i], z));
   			}
   		}
   	}
