@@ -15,14 +15,12 @@ Reco reco;
 // Callback for pointcloud subscriber
 bool recognize (reco_3d::OrientedBoundingBoxRecognition::Request &req,
 								reco_3d::OrientedBoundingBoxRecognition::Response &res) {
-	Eigen::Vector3f t;
+	Eigen::Vector3f t, dims;
 	Eigen::Quaternionf q;
-	double w, h, d;
 
 	Cloud::Ptr cloud (new Cloud);
 	pcl::fromROSMsg(req.cluster, *cloud);
-	obb_computer.bounding_box_mvbb (cloud, q, t, w, h, d);
-	//obb_computer.bounding_box_pca (cloud, q, t, w, h, d);
+	obb_computer.compute_obb_pca_hull (cloud, q, t, dims);
 	res.pose.header = cloud->header;
 	res.pose.pose.position.x = t(0);
 	res.pose.pose.position.y = t(1);
@@ -31,7 +29,7 @@ bool recognize (reco_3d::OrientedBoundingBoxRecognition::Request &req,
 	res.pose.pose.orientation.y = q.y();
 	res.pose.pose.orientation.z = q.z();
 	res.pose.pose.orientation.w = q.w();
-	res.box_dims.x = w; res.box_dims.y = h; res.box_dims.z = d;
+	res.box_dims.x = dims.x; res.box_dims.y = dims.y; res.box_dims.z = dims.z;
 
 	res.names = reco.recognize (w, h, d, 0.99, req.names);
 	res.result = 0;

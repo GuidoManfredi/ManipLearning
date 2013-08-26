@@ -24,7 +24,7 @@ void OctreeProcessor::load_tree (const char* path) {
 	max_ = point3d(x, y, z);
 	cout << "Min : " << min_ << " "
 			 << "Max : " << max_ << endl;
-	voxel_grid_size_ = point_to_voxel_coord (max_);
+	voxel_grid_size_ = point_to_voxel_coord (max_, resolution_, min_);
 	cout << "Voxel grid size : " << voxel_grid_size_ << endl;
 }
 
@@ -71,6 +71,11 @@ vector<unsigned int> OctreeProcessor::compute_histogram_z () {
 	 		hist[bin] += 1;
 		}
   }
+/*  
+  for (size_t i = 0; i < hist.size(); ++i) {
+  	cout << hist[i] << endl;
+  }
+*/
   return hist;
 }
 std::vector<octomap::point3d> OctreeProcessor::get_whole_cloud () {
@@ -122,17 +127,10 @@ void OctreeProcessor::remove (vector<point3d> points) {
 Mat OctreeProcessor::project_slices_2d (vector<point3d> slice) {
 	Mat proj = Mat::zeros (voxel_grid_size_.y(), voxel_grid_size_.x(), CV_8UC1);
 	for (size_t i = 0; i < slice.size(); ++i) {
-		point3d coord = point_to_voxel_coord (slice[i]);
+		point3d coord = point_to_voxel_coord (slice[i], resolution_, min_);
 		proj.at<unsigned char>(coord.y(), coord.x()) = 255;
 	}
 	return proj;
-}
-
-point3d OctreeProcessor::point_to_voxel_coord (point3d point) {
-	unsigned int x = (point.x() - min_.x()) / resolution_;
-	unsigned int y = (point.y() - min_.y()) / resolution_;
-	unsigned int z = (point.z() - min_.z()) / resolution_;
-	return point3d(x, y, z);
 }
 
 vector<point3d> OctreeProcessor::get_slice_xy (vector<double> x, vector<double> y) {
@@ -160,7 +158,7 @@ vector<point3d> OctreeProcessor::get_slice_xy (vector<double> x, vector<double> 
 
 vector<point3d> OctreeProcessor::get_slice_z (unsigned int bin) {
 	double min_z, max_z;
-	bin_to_z (bin, min_z, max_z);
+	bin_to_z (bin, resolution_, min_z, max_z);
 	return get_slice_z (min_z, max_z);
 	/*
 	double min_z, max_z, tmp;
@@ -182,9 +180,29 @@ vector<point3d> OctreeProcessor::get_slice_z (double min_z, double max_z) {
   return slice;
 }
 
-void OctreeProcessor::bin_to_z (unsigned int bin, double &min_z, double &max_z) {
-	min_z = bin * resolution_;
-	max_z = (bin+1) * resolution_;
+Mat OctreeProcessor::get_slice_2d (double z) {
+	Mat slice = Mat::zeros (voxel_grid_size_.y(), voxel_grid_size_.x(), CV_8UC1);
+	for(OcTree::iterator it = tree->begin(maxDepth_), end=tree->end(); it!= end; ++it) {
+		if (tree->isNodeOccupied(*it)) {
+			point3d pt = it.getCoordinate ();
+			//cout << z << " " << pt.z() << endl;
+			if (z == pt.z()) {
+				//cout << z << " " << pt.z() << endl;
+				point3d coord = point_to_voxel_coord (pt, resolution_, min_);
+				slice.at<unsigned char>(coord.y(), coord.x()) = 255;
+			}
+		}
+  }
+  return slice;
+}
+
+vector<Mat> OctreeProcessor::get_slice_2d_all () {
+	vector<Mat> slices;
+	for (unsigned int i = 0; i < voxel_grid_size_.z(); ++i) {
+		//cout << 0.025+i*resolution_ << endl;
+		slices.push_back (get_slice_2d (0.025+i*resolution_));
+	}
+	return slices;
 }
 
 bool OctreeProcessor::is_free_above (point3d pt, unsigned int num_free_voxels) {
@@ -207,6 +225,22 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr OctreeProcessor::tree_to_pointcloud () {
 		}
   }
   return cloud;
+}
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr OctreeProcessor::slices_to_pointcloud (vector<Mat> slices) {
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+	for (size_t z = 0; z < slices.size(); ++z) {
+		for (size_t x = 0; x < slices[z].cols; ++x) {
+			for (size_t y = 0; y < slices[z].rows; ++y) {
+				if (slices[z].at<unsigned char>(x, y) == 255) {
+					//point3d pt = voxel_coord_to_point (point3d(x, y, z), resolution_, min_);
+					//cloud->points.push_back (pcl::PointXYZ (pt.x(), pt.y(), pt.z()));
+					cloud->points.push_back (pcl::PointXYZ (x*resolution_, y*resolution_, z*resolution_));
+				}
+			}
+		}
+	}
+	return cloud;
 }
 
 void OctreeProcessor::pointcloud_to_tree (pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
@@ -252,6 +286,6 @@ vector<point3d> OctreeProcessor::get_non_open_areas (unsigned int num_free_voxel
 			}
 		}
   }
-  cout << "Found " << points.size () << " points out there in the open." << endl;
+  cout << "Found " << points.size () << " points out there non open." << endl;
   return points;
 }

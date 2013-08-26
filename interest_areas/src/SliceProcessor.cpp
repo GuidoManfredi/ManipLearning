@@ -39,7 +39,8 @@ vector< vector<Point> > SliceProcessor::compute_contours (Mat slice) {
   Canny( slice, edges, thresh, thresh*2, 3 );
   /// Find contours
  	vector<Vec4i> hierarchy;
-	findContours( edges, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+	//findContours( edges, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+	findContours( slice, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
 	return contours;
 }
 
@@ -52,3 +53,5 @@ Mat SliceProcessor::contours_to_mat (vector< vector<Point> > contours) {
 	}
 	return res;
 }
+
+

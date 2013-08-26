@@ -26,10 +26,6 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #target_link_libraries(${PROJECT_NAME} another_library)
 #rosbuild_add_boost_directories()
 #rosbuild_link_boost(${PROJECT_NAME} thread)
-#rosbuild_add_executable(octree src/octree.cpp)
-#rosbuild_add_executable(pointcloud src/pointcloud.cpp)
-rosbuild_add_executable(octree src/main.cpp 
-															 src/OctreeProcessor.cpp
-															 src/SliceProcessor.cpp
-															 src/tools.cpp)
+#rosbuild_add_executable(train src/train.cpp)
+rosbuild_add_executable(snapshot src/snapshot.cpp src/Snapshoter.cpp)
 #target_link_libraries(example ${PROJECT_NAME})

@@ -9,6 +9,8 @@
 // OpenCV
 #include <opencv2/core/core.hpp>
 
+#include "tools.h"
+
 class OctreeProcessor
 {
 	public:
@@ -28,17 +30,18 @@ class OctreeProcessor
 		std::vector<octomap::point3d> get_slice_xy (std::vector<double> x, std::vector<double> y);
 		std::vector<octomap::point3d> get_slice_z (unsigned int bin);
 		std::vector<octomap::point3d> get_slice_z (double min_z, double max_z);
+		cv::Mat get_slice_2d (double z);
+		std::vector<cv::Mat> get_slice_2d_all ();
 
 		pcl::PointCloud<pcl::PointXYZ>::Ptr tree_to_pointcloud ();
 		void pointcloud_to_tree (pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+		pcl::PointCloud<pcl::PointXYZ>::Ptr slices_to_pointcloud (std::vector<cv::Mat> slices);
 
 		std::vector<unsigned int> find_max_bins (std::vector<unsigned int> hist);
 
 		cv::Mat project_slices_2d (std::vector<octomap::point3d> slice);
-		octomap::point3d point_to_voxel_coord (octomap::point3d point_coord);
 
 	private:
-		void bin_to_z (unsigned int bin, double &min_z, double &max_z);
 		bool is_free_above (octomap::point3d pt, unsigned int num_free_voxels);
 	
 		octomap::OcTree* tree;
