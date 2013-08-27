@@ -28,22 +28,29 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr Snapshoter::clean () {
 	snapshot_ = remove_main_plan (snapshot_);
 	cout << "Segmenting clusters..." << endl;
 	clusters_ = segment_clusters (snapshot_);
-	return snapshot_;
+	cout << "Isolating interest cluster..." << endl;
+	object_ = interest_cluster (clusters_);
+	return object_;
 }
 
 bool Snapshoter::save (std::string save_path) {
-	//if ( object_->empty() )
-		//cout << "Warning : Snapshoter::save : trying to save empty object." << endl;
-	cout << "Saving to " << save_path << endl;
-	if (pcl::io::savePCDFileASCII(save_path, *clusters_[0]) )
+	// retrieve last part of path (supposedly directory name)
+	stringstream file_path;
+	file_path << save_path << get_last_part(save_path) << numero_ << ".pcd";
+	cout << "Saving to " << file_path.str() << endl;
+	if (pcl::io::savePCDFileASCII(file_path.str(), *object_) ) { // error
 		return true;
-	else
+	}
+	else { // all went well
+		++numero_;
 		return false;
+	}
 }
 
 void Snapshoter::clear () {
 	snapshot_->clear ();
-	//object_->clear ();
+	clusters_.clear ();
+	object_->clear ();
 }
 ////////////////////////////////////////////////////////////////////////////////
 //  PRIVATE METHODS
@@ -102,16 +109,47 @@ vector<PointCloud<PointXYZ>::Ptr>	Snapshoter::segment_clusters (PointCloud<Point
   cout << "Found " << clusters.size () << " clusters." << endl;
   return clusters;
 }
-/*
+
 PointCloud<PointXYZ>::Ptr Snapshoter::interest_cluster (vector<PointCloud<PointXYZ>::Ptr> clusters) {
-	unsigned int max_idx = -1;
-	unsigned int max_size = 0;
+	unsigned int min_idx = -1;
+	double min_dist = 100.0;
 	for (size_t i = 0; i < clusters.size (); ++i) {
-		if (clusters[i]->size() > max_size) {
-			max_idx = i;
-			max_size = clusters[i]->size();
+		double dist = min_distance_to_z (clusters[i]);
+		if (dist < min_dist) {
+			min_idx = i;
+			min_dist = dist;
 		}
 	}
-	return clusters[max_idx];
+	return clusters[min_idx];
 }
-*/
+
+double Snapshoter::min_distance_to_z (PointCloud<PointXYZ>::Ptr cluster) {
+	double min_dist = 100.0;
+	for (size_t i = 0; i < cluster->points.size(); ++i) {
+		double dist  = distance_to_z (cluster->points[i]);
+		if ( dist < min_dist ) {
+			min_dist = dist;
+		}
+	}
+	return min_dist;
+}
+
+double Snapshoter::distance_to_z (PointXYZ pt) {
+	return sqrt (pt.x*pt.x + pt.y*pt.y);
+}
+
+string Snapshoter::get_last_part (string str) {
+	size_t n = str.size();
+	if (str[n-1] == '/')
+		str.erase(n-1);
+	n = str.size(); // take new size if changed
+
+	unsigned int last=0;
+	for (unsigned int i = 0 ; i < str.size(); i++)
+  {
+  	if (str[i] == '/')
+  		last = i;
+  }
+  
+	return str.substr (last, n);
+}

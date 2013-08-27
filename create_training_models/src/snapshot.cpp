@@ -8,8 +8,11 @@
 
 #include "Snapshoter.h"
 
-// TODO faire de "save_path" un dossier. Mettre en place un base_name et une
-// 			numerotation incrementée à chaque sauvegarde.
+// TODO Test on the ground, to make sure main plan is floor plan.
+//			Regler problem du RGB : on veut une cloud XYZRGB a la fin, mais les traitement
+//			de cleaning ne sont possible que sur XYZ. Transformer en cloud XYZ pour
+//			le debut des traitement de cleaning. Dans segment_clusters recuperer les
+//			indices sur l'image XYZRGB.
 using namespace std;
 using namespace pcl;
 

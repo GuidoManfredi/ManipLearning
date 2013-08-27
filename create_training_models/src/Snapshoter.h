@@ -44,8 +44,13 @@ class Snapshoter
 		remove_main_plan (pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>
 		segment_clusters (pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud);
-	//pcl::PointCloud<pcl::PointXYZ>::Ptr
-	//	interest_cluster (std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr
+		interest_cluster (std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters);
+	double min_distance_to_z (pcl::PointCloud<pcl::PointXYZ>::Ptr cluster);
+	double distance_to_z (pcl::PointXYZ pt);
+	std::string get_last_part (std::string str);
+
+	unsigned int numero_;
 	
 	pcl::PointCloud<pcl::PointXYZ>::Ptr snapshot_;
 	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters_;
