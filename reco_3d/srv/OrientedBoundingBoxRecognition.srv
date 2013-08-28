@@ -11,6 +11,8 @@ geometry_msgs/PoseStamped pose
 geometry_msgs/Vector3 box_dims
 #remaining candidates after recognition
 string[] names
+#distance between observed and candidates
+float32[] distances
 
 #the actual error code
 int32 result

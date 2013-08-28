@@ -390,7 +390,7 @@ import geometry_msgs.msg
 import std_msgs.msg
 
 class OrientedBoundingBoxRecognitionResponse(genpy.Message):
-  _md5sum = "09438245b2a6c9e0c6a5717a2df88a21"
+  _md5sum = "29ba60df4e4f810261858bdbc16a1bd8"
   _type = "reco_3d/OrientedBoundingBoxRecognitionResponse"
   _has_header = False #flag to mark the presence of a Header object
   _full_text = """
@@ -403,6 +403,8 @@ geometry_msgs/PoseStamped pose
 geometry_msgs/Vector3 box_dims
 
 string[] names
+
+float32[] distances
 
 
 int32 result
@@ -466,8 +468,8 @@ float64 z
   SUCCESS = 0
   ERROR = 1
 
-  __slots__ = ['pose','box_dims','names','result']
-  _slot_types = ['geometry_msgs/PoseStamped','geometry_msgs/Vector3','string[]','int32']
+  __slots__ = ['pose','box_dims','names','distances','result']
+  _slot_types = ['geometry_msgs/PoseStamped','geometry_msgs/Vector3','string[]','float32[]','int32']
 
   def __init__(self, *args, **kwds):
     """
@@ -477,7 +479,7 @@ float64 z
     changes.  You cannot mix in-order arguments and keyword arguments.
 
     The available fields are:
-       pose,box_dims,names,result
+       pose,box_dims,names,distances,result
 
     :param args: complete set of field values, in .msg order
     :param kwds: use keyword arguments corresponding to message field names
@@ -492,12 +494,15 @@ float64 z
         self.box_dims = geometry_msgs.msg.Vector3()
       if self.names is None:
         self.names = []
+      if self.distances is None:
+        self.distances = []
       if self.result is None:
         self.result = 0
     else:
       self.pose = geometry_msgs.msg.PoseStamped()
       self.box_dims = geometry_msgs.msg.Vector3()
       self.names = []
+      self.distances = []
       self.result = 0
 
   def _get_types(self):
@@ -530,6 +535,10 @@ float64 z
           val1 = val1.encode('utf-8')
           length = len(val1)
         buff.write(struct.pack('<I%ss'%length, length, val1))
+      length = len(self.distances)
+      buff.write(_struct_I.pack(length))
+      pattern = '<%sf'%length
+      buff.write(struct.pack(pattern, *self.distances))
       buff.write(_struct_i.pack(self.result))
     except struct.error as se: self._check_types(se)
     except TypeError as te: self._check_types(te)
@@ -579,6 +588,13 @@ float64 z
         self.names.append(val1)
       start = end
       end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      pattern = '<%sf'%length
+      start = end
+      end += struct.calcsize(pattern)
+      self.distances = struct.unpack(pattern, str[start:end])
+      start = end
+      end += 4
       (self.result,) = _struct_i.unpack(str[start:end])
       return self
     except struct.error as e:
@@ -610,6 +626,10 @@ float64 z
           val1 = val1.encode('utf-8')
           length = len(val1)
         buff.write(struct.pack('<I%ss'%length, length, val1))
+      length = len(self.distances)
+      buff.write(_struct_I.pack(length))
+      pattern = '<%sf'%length
+      buff.write(self.distances.tostring())
       buff.write(_struct_i.pack(self.result))
     except struct.error as se: self._check_types(se)
     except TypeError as te: self._check_types(te)
@@ -660,6 +680,13 @@ float64 z
         self.names.append(val1)
       start = end
       end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      pattern = '<%sf'%length
+      start = end
+      end += struct.calcsize(pattern)
+      self.distances = numpy.frombuffer(str[start:end], dtype=numpy.float32, count=length)
+      start = end
+      end += 4
       (self.result,) = _struct_i.unpack(str[start:end])
       return self
     except struct.error as e:
@@ -671,6 +698,6 @@ _struct_3I = struct.Struct("<3I")
 _struct_10d = struct.Struct("<10d")
 class OrientedBoundingBoxRecognition(object):
   _type          = 'reco_3d/OrientedBoundingBoxRecognition'
-  _md5sum = '548454f15a44418037250e6b978bad35'
+  _md5sum = '35516dc0c64143d1e7a9a48da3abdf84'
   _request_class  = OrientedBoundingBoxRecognitionRequest
   _response_class = OrientedBoundingBoxRecognitionResponse

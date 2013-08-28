@@ -14,7 +14,7 @@
   <depend package="std_msgs"/>
   <depend package="pcl"/>
   <depend package="pcl_ros"/>
-  <depend package="seg_plans_objs"/>
+  <depend package="segment_plans_objects"/>
 
 </package>
 

@@ -5,8 +5,9 @@ using namespace std;
 Reco::Reco ()
 {}
 
-vector<string> Reco::recognize (float w, float h, float d, float max_distance,
-													 std::vector<string> candidates)
+std::vector< std::pair<std::string, float> >
+	Reco::recognize (float w, float h, float d, float max_distance,
+									 std::vector<string> candidates)
 {
 	// w, h, d are in meters, convert to millimeters
 	vector<float> v;
@@ -52,10 +53,10 @@ void Reco::load_training_file (std::string stats_filepath)
 //	Private methods
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<string> Reco::recognize (pcl::PointXYZ descriptor, float max_distance,
+vector< pair<string, float> > Reco::recognize (pcl::PointXYZ descriptor, float max_distance,
 													 			vector<string> candidates)
 {
-	vector<string> vec_candidates;
+	vector<pair<string, float> > vec_candidates;
 	map<float, string> map_distance_candidates;
 
 	for (size_t i=0; i<_vec_cov.size (); ++i) {
@@ -71,8 +72,8 @@ vector<string> Reco::recognize (pcl::PointXYZ descriptor, float max_distance,
 	}
 	// Map is ordered by decreasing distance
 	for (std::map<float,string>::iterator it=map_distance_candidates.begin(); it!=map_distance_candidates.end(); ++it) {
-		//cout << descriptor << endl << it->first << endl;
-		vec_candidates.push_back (it->second);
+		//cout << descriptor << endl << it->first << " " << it->second << endl;
+		vec_candidates.push_back (pair<string, float>(it->second, it->first));
 	}
 	
 	return vec_candidates;

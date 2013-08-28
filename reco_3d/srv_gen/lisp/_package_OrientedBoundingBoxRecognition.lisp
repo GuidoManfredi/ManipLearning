@@ -9,6 +9,8 @@
           BOX_DIMS
           NAMES-VAL
           NAMES
+          DISTANCES-VAL
+          DISTANCES
           RESULT-VAL
           RESULT
 ))

@@ -35,12 +35,12 @@ vector< vector<Point> > SliceProcessor::compute_contours (Mat slice) {
 	vector< vector<Point> > contours;
 	/// Detect edges using canny
 	int thresh = 100;
-	Mat edges;
-  Canny( slice, edges, thresh, thresh*2, 3 );
+	//Mat edges;
+  //Canny( slice, edges, thresh, thresh*2, 3 );
   /// Find contours
  	vector<Vec4i> hierarchy;
 	//findContours( edges, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
-	findContours( slice, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
+	findContours( slice, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE, Point(0, 0) );
 	return contours;
 }
 
@@ -53,5 +53,17 @@ Mat SliceProcessor::contours_to_mat (vector< vector<Point> > contours) {
 	}
 	return res;
 }
+/*
+vector<segment> segment_lines_ransac () {
 
+}
+
+unsigned int get_inliers (cv::Mat img, double a, double b) {
+
+}
+
+double distance_to_line (unsigned int x, unsigned int y, double a, double b) {
+
+}
+*/
 

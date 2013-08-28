@@ -78,6 +78,15 @@ vector<unsigned int> OctreeProcessor::compute_histogram_z () {
 */
   return hist;
 }
+
+void OctreeProcessor::remove (vector<point3d> points) {
+	cout << "Removing " << points.size () << " points." << endl;
+	for (size_t i = 0; i < points.size(); ++i) {
+		tree->updateNode (points[i], octomap::logodds(0.0f));
+	}
+	tree->updateInnerOccupancy ();
+}
+
 std::vector<octomap::point3d> OctreeProcessor::get_whole_cloud () {
 
 	vector<point3d> cloud;
@@ -101,36 +110,19 @@ std::vector<octomap::point3d> OctreeProcessor::get_floor (std::vector<unsigned i
 
 vector<point3d> OctreeProcessor::get_walls (vector<unsigned int> hist) {
 	// getting the bin number = index in the vector
-	//unsigned int min_bin = std::min_element(hist.begin(), hist.end()) - hist.begin ();
-	unsigned int min_bin = hist.size()-1; // just before the ceiling
+	unsigned int min_bin = std::min_element(hist.begin(), hist.end()) - hist.begin ();
+	//unsigned int min_bin = hist.size()-1; // just before the ceiling
 	cout << "Walls bin : " << min_bin << ", with " << hist[min_bin] <<" elements." << endl;
 	
-	//vector<point3d> slice_z = get_slice_z (min_bin);
-	double min_z = 1.9, max_z = 2.2;
-	vector<point3d> slice_z = get_slice_z (min_z, max_z);
+	vector<point3d> slice_z = get_slice_z (min_bin);
+	//double min_z = 1.9, max_z = 2.2;
+	//vector<point3d> slice_z = get_slice_z (min_z, max_z);
 	vector<double> x, y;
 	for (size_t i = 0; i < slice_z.size(); ++i) {
 		x.push_back (slice_z[i].x());
 		y.push_back (slice_z[i].y());
 	}
 	return get_slice_xy (x, y);
-}
-
-void OctreeProcessor::remove (vector<point3d> points) {
-	cout << "Removing " << points.size () << " points." << endl;
-	for (size_t i = 0; i < points.size(); ++i) {
-		tree->updateNode (points[i], octomap::logodds(0.0f));
-	}
-	tree->updateInnerOccupancy ();
-}
-
-Mat OctreeProcessor::project_slices_2d (vector<point3d> slice) {
-	Mat proj = Mat::zeros (voxel_grid_size_.y(), voxel_grid_size_.x(), CV_8UC1);
-	for (size_t i = 0; i < slice.size(); ++i) {
-		point3d coord = point_to_voxel_coord (slice[i], resolution_, min_);
-		proj.at<unsigned char>(coord.y(), coord.x()) = 255;
-	}
-	return proj;
 }
 
 vector<point3d> OctreeProcessor::get_slice_xy (vector<double> x, vector<double> y) {
@@ -180,29 +172,30 @@ vector<point3d> OctreeProcessor::get_slice_z (double min_z, double max_z) {
   return slice;
 }
 
-Mat OctreeProcessor::get_slice_2d (double z) {
-	Mat slice = Mat::zeros (voxel_grid_size_.y(), voxel_grid_size_.x(), CV_8UC1);
-	for(OcTree::iterator it = tree->begin(maxDepth_), end=tree->end(); it!= end; ++it) {
-		if (tree->isNodeOccupied(*it)) {
-			point3d pt = it.getCoordinate ();
-			//cout << z << " " << pt.z() << endl;
-			if (z == pt.z()) {
-				//cout << z << " " << pt.z() << endl;
-				point3d coord = point_to_voxel_coord (pt, resolution_, min_);
-				slice.at<unsigned char>(coord.y(), coord.x()) = 255;
-			}
+unsigned int OctreeProcessor::num_occupied_above (vector<point3d> slice) {
+	unsigned int counter = 0;
+	for (size_t i=0; i < slice.size(); ++i) {
+		OcTreeNode* node = tree->search(slice[i].x(),
+																		slice[i].y(),
+																		slice[i].z() + resolution_);
+		if (node == NULL || tree->isNodeOccupied(node)) {
+			++counter;
 		}
-  }
-  return slice;
+	}
+	return counter;
 }
 
-vector<Mat> OctreeProcessor::get_slice_2d_all () {
-	vector<Mat> slices;
-	for (unsigned int i = 0; i < voxel_grid_size_.z(); ++i) {
-		//cout << 0.025+i*resolution_ << endl;
-		slices.push_back (get_slice_2d (0.025+i*resolution_));
+unsigned int OctreeProcessor::num_free_above (vector<point3d> slice) {
+	unsigned int counter = 0;
+	for (size_t i=0; i < slice.size(); ++i) {
+		OcTreeNode* node = tree->search(slice[i].x(),
+																		slice[i].y(),
+																		slice[i].z() + resolution_);
+		if (node != NULL && !tree->isNodeOccupied(node)) {
+			++counter;
+		}
 	}
-	return slices;
+	return counter;
 }
 
 bool OctreeProcessor::is_free_above (point3d pt, unsigned int num_free_voxels) {
@@ -288,4 +281,38 @@ vector<point3d> OctreeProcessor::get_non_open_areas (unsigned int num_free_voxel
   }
   cout << "Found " << points.size () << " points out there non open." << endl;
   return points;
+}
+
+Mat OctreeProcessor::project_slices_2d (vector<point3d> slice) {
+	Mat proj = Mat::zeros (voxel_grid_size_.y(), voxel_grid_size_.x(), CV_8UC1);
+	for (size_t i = 0; i < slice.size(); ++i) {
+		point3d coord = point_to_voxel_coord (slice[i], resolution_, min_);
+		proj.at<unsigned char>(coord.y(), coord.x()) = 255;
+	}
+	return proj;
+}
+
+Mat OctreeProcessor::get_slice_2d (double z) {
+	Mat slice = Mat::zeros (voxel_grid_size_.y(), voxel_grid_size_.x(), CV_8UC1);
+	for(OcTree::iterator it = tree->begin(maxDepth_), end=tree->end(); it!= end; ++it) {
+		if (tree->isNodeOccupied(*it)) {
+			point3d pt = it.getCoordinate ();
+			//cout << z << " " << pt.z() << endl;
+			if (z == pt.z()) {
+				//cout << z << " " << pt.z() << endl;
+				point3d coord = point_to_voxel_coord (pt, resolution_, min_);
+				slice.at<unsigned char>(coord.y(), coord.x()) = 255;
+			}
+		}
+  }
+  return slice;
+}
+
+vector<Mat> OctreeProcessor::get_slice_2d_all () {
+	vector<Mat> slices;
+	for (unsigned int i = 0; i < voxel_grid_size_.z(); ++i) {
+		//cout << 0.025+i*resolution_ << endl;
+		slices.push_back (get_slice_2d (0.025+i*resolution_));
+	}
+	return slices;
 }

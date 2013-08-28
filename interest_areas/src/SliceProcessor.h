@@ -13,7 +13,11 @@ class SliceProcessor
 		cv::Mat denoise (cv::Mat slice);
 		std::vector< std::vector<cv::Point> > compute_contours (cv::Mat slice);
 		cv::Mat contours_to_mat (std::vector< std::vector<cv::Point> > contours);
-
+/*
+		segment_lines_ransac ();
+		unsigned int get_inliers (cv::Mat img, double a, double b); // a and b are the line coefs
+		double distance_to_line (unsigned int x, unsigned int y, double a, double b);
+*/
 	private:
 		unsigned int width_, height_;
 };

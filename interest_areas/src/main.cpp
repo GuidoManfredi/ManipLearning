@@ -21,27 +21,34 @@ void test_denoise () {
 	while (!viewer.wasStopped ()) {}
 }
 
-void test_octree_processing () {	
+void test_octree_processing () {
 	std::vector<unsigned int> hist = op.compute_histogram_z ();
 	std::vector<octomap::point3d> walls = op.get_walls (hist);
-	//std::vector<octomap::point3d> floor = op.get_floor (hist);
+	std::vector<octomap::point3d> floor = op.get_floor (hist);
 	//std::vector<octomap::point3d> non_open_areas = op.get_non_open_areas (1);
 	//std::vector<octomap::point3d> open_areas = op.get_open_areas (1);
 	//op.remove (open_areas);
 	//op.remove (non_open_areas);
 	//op.remove (walls);
 	//op.remove (floor);
+	//hist = op.compute_histogram_z ();
 	//op.remove (non_planes);
-
 	/*
-	for (size_t i = 0; i < cloud.size(); ++i) {
-		cout << cloud[i].z() << endl;
+	for (size_t i = 0; i < hist.size(); ++i) {
+		cout << hist[i] << endl;
 	}
 	*/
 	
-	std::vector<octomap::point3d> cloud = op.get_whole_cloud ();	
-	viewer.showCloud (op.cloud_to_pcl (cloud));
-	while (!viewer.wasStopped ()) {}
+	cv::Mat walls_projected = op.project_slices_2d (walls);
+	walls_projected = sp.denoise (walls_projected);
+	cv::namedWindow("Slice");
+	cv::imshow ("Slice", walls_projected);
+	cv::waitKey(0);
+	
+	//std::vector<octomap::point3d> cloud = op.get_whole_cloud ();	
+	//viewer.showCloud (op.cloud_to_pcl (cloud));
+	//viewer.showCloud (op.cloud_to_pcl (walls));
+	//while (!viewer.wasStopped ()) {}
 
 	//std::vector<cv::Mat> slices = op.get_interest_areas ();
 }
@@ -57,11 +64,21 @@ void test_slice_processing () {
 	cv::waitKey(0);
 }
 
+void test_num_occupied () {
+	for (unsigned int i = 0; i < 44; ++i) {
+		std::vector<octomap::point3d> slice = op.get_slice_z (i);
+		unsigned int occup = op.num_occupied_above (slice);
+		//unsigned int occup = op.num_free_above (slice);
+		cout << occup << endl;		
+	}
+}
+
 int main (int argc, char const* argv[])
 {
 	op.load_tree (argv[1]);
+	test_num_occupied ();
   //test_octree_processing ();
   //test_slice_processing ();
-  test_denoise();
+  //test_denoise();
 	return 0;
 }

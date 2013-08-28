@@ -24,12 +24,13 @@ int num_plans_requested = 0;
 // Callback function for "segment_plans" service
 bool segment (segment_plans_objects::PlantopSegmentation::Request  &req,
 		         	segment_plans_objects::PlantopSegmentation::Response &res) {		         	
+	cout << "Query received !" << endl;
 	if (current_cloud->empty()) {
 		res.result = 1;
 		cout << "Error : segment_plans_objects : no current cloud" << endl;
 		return false;
 	}
-	
+	cout << "Segmenting..." << endl;
 	res.result = 4;
   if (segmenter.segment_plans (current_cloud) == 0)
 		res.result = 2;
@@ -37,6 +38,7 @@ bool segment (segment_plans_objects::PlantopSegmentation::Request  &req,
 		res.result = 3;
 	else if (segmenter.segment_rgb (current_rgb) == 0)
 		res.result = 3;
+	cout << "Segmentation done." << endl;
 
 	// TODO Remplir le header pour la pose de la table
 	Eigen::Vector3f t = segmenter.get_prefered_plan_translation ();
@@ -103,7 +105,7 @@ int main(int argc, char **argv) {
   ros::Subscriber sub_pointcloud = n.subscribe(argv[1], 10, save_pointcloud);
   ros::Subscriber sub_rgb = n.subscribe(argv[2], 10, save_rgb);
 	// Output
-  ros::ServiceServer srv_plans = n.advertiseService("/segmentation_plantop", segment);
+  ros::ServiceServer srv_plans = n.advertiseService("/segmentation", segment);
  	cout << "Segmentation service ready." << endl;
  	
  	ros::Rate loop_rate(10);
