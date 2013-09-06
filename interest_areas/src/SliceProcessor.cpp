@@ -11,7 +11,9 @@ vector< vector<Point> > SliceProcessor::compute_interest_area_contours (vector<M
 																																				unsigned int thresh) {
 	std::vector< std::vector<cv::Point> > all_contours;
 	for (size_t i = 0; i < slices.size(); ++i) {
+		//save_slice (slices[i], i);
 		Mat denoised = denoise (slices[i]);
+		//save_slice (denoised, i);
 		std::vector< std::vector<cv::Point> > contours = compute_contours (denoised);
 		for (size_t i = 0; i < contours.size(); ++i) {
 			if (contours[i].size() > thresh)
@@ -23,23 +25,21 @@ vector< vector<Point> > SliceProcessor::compute_interest_area_contours (vector<M
 }
 
 Mat SliceProcessor::denoise (Mat slice) {
-	width_ = slice.rows;
+	width_  = slice.rows;
 	height_ = slice.cols;
-	Mat out;
-	erode (slice, out, Mat());
-	dilate (out, out, Mat());
-	return out;
+	cv::Mat res(slice.size(), CV_8UC1);
+	int erosion_elem = MORPH_RECT;//MORPH_ELLIPSE; //MORPH_CROSS;//MORPH_RECT;
+	int erosion_size = 1;
+	Mat element = getStructuringElement( erosion_elem,
+                                       Size( 2*erosion_size + 1, 2*erosion_size+1 ),
+                                       Point( erosion_size, erosion_size ) );
+	cv::morphologyEx(slice, res, cv::MORPH_OPEN, element);
+	return res;
 }
 
 vector< vector<Point> > SliceProcessor::compute_contours (Mat slice) {
 	vector< vector<Point> > contours;
-	/// Detect edges using canny
-	int thresh = 100;
-	//Mat edges;
-  //Canny( slice, edges, thresh, thresh*2, 3 );
-  /// Find contours
  	vector<Vec4i> hierarchy;
-	//findContours( edges, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0) );
 	findContours( slice, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE, Point(0, 0) );
 	return contours;
 }
@@ -53,17 +53,312 @@ Mat SliceProcessor::contours_to_mat (vector< vector<Point> > contours) {
 	}
 	return res;
 }
+
+Mat SliceProcessor::contours_to_mat (vector<Point> contours) {
+	Mat res = Mat::zeros (width_, height_, CV_8UC1);
+	for (size_t i = 0; i < contours.size(); ++i)
+			res.at<unsigned char>(contours[i].y, contours[i].x) = 255;
+	return res;
+}
+
+//void SliceProcessor::save_slices (vector< vector<Point> > contours, string path) {
+void SliceProcessor::save_slice (Mat contours, unsigned int i) {
+	std::stringstream ss;
+	ss << "slice" << i << ".png";
+	cv::imwrite (ss.str(), contours);
+}
+
+
+
+vector<Vec4i> SliceProcessor::segment_lines (cv::Mat img, vector<Point> &all_inliers) {
+	vector<Vec4i> segments;
+	Mat working_copy = img.clone();
+	vector<Point> inliers;
+	do {
+		Vec4i line = segment_line_ransac (working_copy, 4, 10000, inliers);
+		Vec4i segment = min_max_along_line (inliers, line);
+		remove (working_copy, inliers);
+		all_inliers.insert (all_inliers.end(), inliers.begin(), inliers.end());
+		segments.push_back (segment);
+	//} while (inliers.size() > 250);
+	//} while (inliers.size() > 150);
+	//} while (inliers.size() > 40);
+	} while (inliers.size() > 20); // 20*0.05 = 1m
+	return segments;
+}
+
+Vec4i SliceProcessor::segment_line_ransac (cv::Mat img,
+																						unsigned int tresh,
+																						unsigned int num_iterations,
+																						vector<Point> &max_inliers) {
+	max_inliers.clear();
+	Vec4i best_line;
+	for (unsigned int i = 0; i < num_iterations; ++i) {
+		// Take two points on the border of the image
+		Vec4i line = get_two_points_random (img.cols, img.rows);
+		//Vec4i line = get_two_points_random ();
+		vector<Point> inliers = get_inliers (img, line, tresh);
+		//cout << "Num inliers : " << inliers.size() << endl;
+		if (inliers.size() > max_inliers.size()) {
+			max_inliers = inliers;
+			best_line = line;
+		}
+	}
+
+	//for (size_t i = 0; i < max_inliers.size(); ++i)
+		//cout << int(img.at<unsigned char>(max_inliers[i])) << endl;
+	
+	return best_line;
+}
 /*
-vector<segment> segment_lines_ransac () {
+Vec4i SliceProcessor::get_two_points_random () {
+	unsigned int i1 = rand()%occupied_points_.size();
+	unsigned int i2 = rand()%occupied_points_.size();
 
+	return Vec4i (occupied_points_[i1].x, 
+								occupied_points_[i1].y,
+								occupied_points_[i2].x,
+								occupied_points_[i2].y);
+}
+*/
+Vec4i SliceProcessor::get_two_points_random (unsigned int width,
+																							unsigned int height) {
+	unsigned int x1, y1, x2, y2;
+	if (rand()%2) {
+		x1 = rand()%width;
+		y1 = 0;
+	}	else {
+		x1 = 0;
+		y1 = rand()%height;
+	}
+	
+	if (rand()%2) {
+		x2 = width;
+		y2 = rand()%height;
+	} else {
+		x2 = rand()%width;
+		y2 = height;
+	}
+	
+	return Vec4i (x1, y1, x2, y2);
 }
 
-unsigned int get_inliers (cv::Mat img, double a, double b) {
-
+vector<Point> SliceProcessor::get_inliers (Mat img,
+																					Vec4i line, unsigned int tresh) {
+	vector<Point> inliers;
+	Point L1 (line(0),line(1));
+	Point L2 (line(2),line(3));
+	LineIterator it(img, L1, L2, 8);
+	for(int i = 0; i < it.count; ++i, ++it) {
+		Point pt = it.pos();
+		if ( img.at<unsigned char>(pt) == 255 )
+			inliers.push_back (pt);
+	}
+	
+	//for (size_t i = 0; i < inliers.size(); ++i)
+		//cout << int(img.at<unsigned char>(inliers[i])) << endl;
+	
+	return inliers;
 }
 
-double distance_to_line (unsigned int x, unsigned int y, double a, double b) {
+/*
+vector<Point> SliceProcessor::get_inliers (Mat img,
+																					Vec4i line, unsigned int tresh) {
+	vector<Point> inliers;
+	Point L1 (line(0),line(1));
+	Point L2 (line(2),line(3));
+	LineIterator it(img, L1, L2, 8);
+	for(int i = 0; i < it.count; ++i, ++it) {
+		Point pt = it.pos();
+		if ( img.at<unsigned char>(pt) == 255 )
+			inliers.push_back (pt);
+	}
+	
+	//for (size_t i = 0; i < inliers.size(); ++i)
+		//cout << int(img.at<unsigned char>(inliers[i])) << endl;
+	
+	return inliers;
+}
+*/
+void SliceProcessor::remove (cv::Mat &img, vector<Point> pts) {
+	cout << "Removing " << pts.size() << " points." << endl;
+	for (size_t i = 0; i < pts.size(); ++i) {
+		//cout << static_cast<int>(img.at<unsigned char>(pts[i])) << endl;
+		img.at<unsigned char>(pts[i]) = 0;
+	}
+}
 
+Vec4i SliceProcessor::min_max_along_line (vector<Point> vec, Vec4i line) {
+	Vec4i new_line;																		
+	Point min, max;
+	min_max_along_line (vec, line, min, max);
+	new_line(0) = min.x;
+	new_line(1) = min.y;
+	new_line(2) = max.x;
+	new_line(3) = max.y;
+	return new_line;
+}
+
+void SliceProcessor::min_max_along_line (vector<Point> vec, Vec4i line,
+																					Point &min, Point &max) {
+	float min_dist_to_min = 1e4;
+	float min_dist_to_max = 1e4;
+	Point L1(line(0), line(1)), L2(line(2), line(3));
+	for (size_t i = 0; i < vec.size(); ++i) {
+		float dist_to_min = norm (vec[i] - L1);
+		float dist_to_max = norm (vec[i] - L2);
+		if (dist_to_min < min_dist_to_min) {
+			min = vec[i];
+			min_dist_to_min = dist_to_min;
+		}
+		if (dist_to_max < min_dist_to_max) {
+			max = vec[i];
+			min_dist_to_max = dist_to_max;
+		}
+	}
+}
+
+vector<Point> SliceProcessor::get_occupied_points (Mat img) {
+	vector<Point> occupied_points;
+	for (unsigned int y = 0; y < img.rows; ++y) {
+		for (unsigned int x = 0; x < img.cols; ++x) {
+			if (img.at<unsigned char>(x, y) == 255)
+				occupied_points.push_back (Point(x,y));
+		}
+	}
+	cout << "Counter " << occupied_points.size() << " occupied points" << endl;
+	return occupied_points;
+}
+
+void SliceProcessor::get_bounding_lines (Vec4i segment, double delta,
+																				 int width, int height,
+																				 Vec4i &line1, Vec4i &line2) {
+	if ( segment(0) == 0 ) {
+		line1(0) = 0;
+		line2(0) = 0;
+		line1(1) = segment(1) - delta;
+		line2(1) = segment(1) + delta;
+	}
+	else { // segment(1) == 0
+		line1(0) = segment(0) - delta;
+		line2(0) = segment(0) + delta;
+		line1(1) = 0;
+		line2(1) = 0;
+	}
+	
+	if ( segment(2) == width ) {
+		line1(2) = width;
+		line2(2) = width;
+		line1(3) = segment(3) - delta;
+		line2(3) = segment(3) + delta;
+	}
+	else { // segment(3) == height
+		line1(2) = segment(2) - delta;
+		line2(2) = segment(2) + delta;
+		line1(3) = height;
+		line2(3) = height;
+	}
+}
+
+vector<Vec4i> SliceProcessor::merge_close_segments (vector<Vec4i> segments) {
+	vector<Vec4i> groups;
+	vector<unsigned int> nums;
+	double thresh = 80;
+	for (size_t i = 0; i < segments.size(); ++i) {
+		bool assigned = false;
+		for (size_t k = 0; k < groups.size(); ++k) {
+			double dist = segment_distance (segments[i], groups[k]);
+			if (dist < thresh && !assigned) {
+				add_to_group (segments[i], groups[k], nums[k]);
+				assigned = true;
+			}
+		}
+		if (!assigned) {
+			groups.push_back (segments[i]);
+			nums.push_back(1);
+		}
+	}
+	cout << groups.size () << endl;
+	return groups;
+}
+
+double SliceProcessor::segment_distance (Vec4i seg1, Vec4i seg2) {
+	return (norm(seg1 - seg2));
+	/*
+	Point a1 (seg1(0),seg1(1)), b1 (seg1(2),seg1(3));
+	Point a2 (seg2(0),seg2(1)), b2 (seg2(2),seg2(3));
+	LineIterator it1(img, a1, b1, 8), it2(img, a2, b2, 8);
+	for(int i = 0; i < it.count; ++i, ++it) {
+		Point pt = it.pos();
+	*/
+}
+
+void SliceProcessor::add_to_group (Vec4i in, Vec4i &group, unsigned int &size) {
+	group(0) *= size;
+	group(1) *= size;
+	group(2) *= size;
+	group(3) *= size;
+	++size;
+	group = (group + in);
+	group(0) /= size;
+	group(1) /= size;
+	group(2) /= size;
+	group(3) /= size;
+}
+
+/*
+vector<Vec4i> SliceProcessor::merge_close_segments (vector<Vec4i> segments) {
+	Mat coocurrence_mat (segments.size(), segments.size(), CV_8UC1);
+	double min_dist = 1e4;
+	double min_idx = 0;
+	for (size_t i = 0; i < segments.size(); ++i) {
+		for (size_t j = i; j < segments.size(); ++j) {
+			double dist = segment_distance (segments[i], segments[j]);
+			if (dist < min_dist) {
+				min_dist = dist;
+				min_idx = j
+				break;
+			}
+		}
+	}
+	return segments;
 }
 */
 
+/*
+void SliceProcessor::get_bounding_lines (Vec4i segment, double delta,
+																				 Vec4i &line1, Vec4i &line2) {
+	double a, b, a1, b1, a2, b2;
+	segment_equation (segment, a, b);
+	normal_equation (segment(0), segment(1), a, b, a1, b1);
+	normal_equation (segment(2), segment(3), a, b, a2, b2);
+	cout << "A: " << a2 << " " << "B: " << b2 << endl;
+	Vec4i tangente1 = normal_at_point (segment(0), segment(1), delta, a1, b1);
+	Vec4i tangente2 = normal_at_point (segment(2), segment(3), delta, a2, b2);
+	line1 = Vec4i (tangente1(0), tangente1(1), tangente2(0), tangente2(1));
+	line2 = Vec4i (tangente1(2), tangente1(3), tangente2(2), tangente2(3));
+}
+
+Vec4i SliceProcessor::normal_at_point (double x, double y, double delta, double a, double b) {
+	Vec4i tangente;
+	double x1, y1, x2, y2;
+	x1 = x - delta;
+	y1 = a * x1 + b;
+	x2 = x + delta;
+	y2 = a * x2 + b;
+	cout << x1 << " " << y1 << " " << x2 << " " << y2 << endl;
+	return Vec4i(x1, y1, x2, y2);
+}
+
+void SliceProcessor::normal_equation (double x, double y, double a1, double b1,
+																				double &a2, double &b2) {
+	a2 = - 1/a1;
+	b2 = y - a2 * x;
+}
+
+void SliceProcessor::segment_equation (Vec4i segment, double &a, double &b) {
+	a = static_cast<double>(segment(3) - segment(1))/static_cast<double>(segment(2) - segment(1));
+	b = segment(1) - segment(0) * a;
+	//cout << segment << " " << a << " " << b << endl;
+}
+*/

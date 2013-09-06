@@ -28,13 +28,80 @@ void OctreeProcessor::load_tree (const char* path) {
 	cout << "Voxel grid size : " << voxel_grid_size_ << endl;
 }
 
-vector<Mat>	OctreeProcessor::get_interest_areas () {
-	vector<Mat> slices;
+void OctreeProcessor::update_size () {
+	// Compute min and max once and for all
+	double x, y, z;
+	tree->getMetricMin (x, y, z);
+	min_ = point3d(x, y, z);
+	tree->getMetricMax (x, y, z);
+	max_ = point3d(x, y, z);
+	cout << "New min : " << min_ << " "
+			 << "New max : " << max_ << endl;
+	voxel_grid_size_ = point_to_voxel_coord (max_, resolution_, min_);
+}
+
+vector< vector<point3d> > OctreeProcessor::get_interest_clouds () {
+	// CLEANING
+	octomap::point3d min (0.0, 0.0, 0.0), max (10.0, 8.0, 2.2);
+	std::vector<octomap::point3d> out_of_bounds = get_out_of_bounds (min, max);
+	remove (out_of_bounds);
+
 	std::vector<unsigned int> hist = compute_histogram_z ();
+	std::vector<octomap::point3d> floor = get_floor (hist);
+	remove (floor);
+	
 	std::vector<octomap::point3d> walls = get_walls (hist);
 	remove (walls);
-	// compute new histogram
+	
+	std::vector<octomap::point3d> noise = get_noise ();
+	remove (noise);
+	// ACTUAL PROCESSING
+	vector< vector<point3d> > interest_clusters;
+	vector<point3d> cluster;
+	for (unsigned int i=0; i<7; ++i) {
+		hist = compute_histogram_z ();
+		for (size_t i = 0; i < hist.size(); ++i)
+			cout << hist[i] << endl;
+		cluster = get_max_hist_cluster (hist);
+		interest_clusters.push_back (cluster);
+		remove (cluster);
+	}
+	return interest_clusters;
+}
+
+vector<point3d> OctreeProcessor::get_max_hist_cluster (vector<unsigned int> hist) {
+	unsigned int max_bin = std::max_element(hist.begin(), hist.end()) - hist.begin ();
+	std::vector<octomap::point3d> slice_z = get_slice_z (max_bin);
+	vector<double> x, y;
+	for (size_t i = 0; i < slice_z.size(); ++i) {
+		x.push_back (slice_z[i].x());
+		y.push_back (slice_z[i].y());
+	}
+	return get_slice_xy (x, y);
+}
+
+vector<Mat>	OctreeProcessor::get_interest_areas () {
+	vector<Mat> slices;
+	
+	octomap::point3d min (0.0, 0.0, 0.0), max (10.0, 8.0, 2.2);
+	std::vector<octomap::point3d> out_of_bounds = get_out_of_bounds (min, max);
+	remove (out_of_bounds);
+
+	std::vector<unsigned int> hist = compute_histogram_z ();
+	std::vector<octomap::point3d> floor = get_floor (hist);
+	remove (floor);
+	
+	std::vector<octomap::point3d> walls = get_walls (hist);
+	remove (walls);
+	
+	std::vector<octomap::point3d> noise = get_noise ();
+	remove (noise);
+	
+	// compute new histogram	
 	hist = compute_histogram_z ();
+	for (size_t i = 0; i < hist.size(); ++i) {
+		cout << hist[i] << endl;
+	}
 	std::vector<unsigned int> maxs = find_max_bins (hist);
 	for (size_t i = 0; i < maxs.size(); ++i) {
 		std::vector<octomap::point3d> slice = get_slice_z (maxs[i]);
@@ -46,7 +113,7 @@ vector<Mat>	OctreeProcessor::get_interest_areas () {
 		cout << maxs[i]*resolution_ << " ";
 	}
 	cout << endl;
-
+	
 	return slices;
 }
 
@@ -85,6 +152,8 @@ void OctreeProcessor::remove (vector<point3d> points) {
 		tree->updateNode (points[i], octomap::logodds(0.0f));
 	}
 	tree->updateInnerOccupancy ();
+	
+	//update_size ();
 }
 
 std::vector<octomap::point3d> OctreeProcessor::get_whole_cloud () {
@@ -110,11 +179,11 @@ std::vector<octomap::point3d> OctreeProcessor::get_floor (std::vector<unsigned i
 
 vector<point3d> OctreeProcessor::get_walls (vector<unsigned int> hist) {
 	// getting the bin number = index in the vector
-	unsigned int min_bin = std::min_element(hist.begin(), hist.end()) - hist.begin ();
+	min_bin_ = std::min_element(hist.begin(), hist.end()) - hist.begin ();
 	//unsigned int min_bin = hist.size()-1; // just before the ceiling
-	cout << "Walls bin : " << min_bin << ", with " << hist[min_bin] <<" elements." << endl;
+	cout << "Walls bin : " << min_bin_ << ", with " << hist[min_bin_] <<" elements." << endl;
 	
-	vector<point3d> slice_z = get_slice_z (min_bin);
+	vector<point3d> slice_z = get_slice_z (min_bin_);
 	//double min_z = 1.9, max_z = 2.2;
 	//vector<point3d> slice_z = get_slice_z (min_z, max_z);
 	vector<double> x, y;
@@ -123,6 +192,44 @@ vector<point3d> OctreeProcessor::get_walls (vector<unsigned int> hist) {
 		y.push_back (slice_z[i].y());
 	}
 	return get_slice_xy (x, y);
+}
+
+vector<point3d> OctreeProcessor::get_noise () {
+	vector<point3d> noise;
+	for(OcTree::iterator it = tree->begin(maxDepth_), end=tree->end(); it!= end; ++it) {
+		if (tree->isNodeOccupied(*it)) {
+			point3d pt = it.getCoordinate ();
+			if (!star_test(pt))
+				noise.push_back (pt);
+		}
+  }
+  return noise;
+}
+
+vector<point3d> OctreeProcessor::get_noise (std::vector<octomap::point3d> points) {
+	vector<point3d> noise;
+	for (size_t i = 0; i < points.size(); ++i) {
+		if (!star_test(points[i]))
+			noise.push_back (points[i]);
+	}
+  return noise;
+}
+
+vector<point3d> OctreeProcessor::get_out_of_bounds (point3d min, point3d max) {
+	vector<point3d> out;
+	for(OcTree::iterator it = tree->begin(maxDepth_), end=tree->end(); it!= end; ++it) {
+		if (tree->isNodeOccupied(*it)) {
+			point3d pt = it.getCoordinate ();
+			if (pt.x() < min.x()
+				|| pt.y() < min.y()
+				|| pt.z() < min.z()
+				|| pt.x() > max.x()
+				|| pt.y() > max.y()
+				|| pt.z() > max.z())
+				out.push_back (pt);
+		}
+  }
+  return out;
 }
 
 vector<point3d> OctreeProcessor::get_slice_xy (vector<double> x, vector<double> y) {
@@ -152,12 +259,13 @@ vector<point3d> OctreeProcessor::get_slice_z (unsigned int bin) {
 	double min_z, max_z;
 	bin_to_z (bin, resolution_, min_z, max_z);
 	return get_slice_z (min_z, max_z);
-	/*
+}
+
+vector<point3d> OctreeProcessor::get_slice_z (unsigned int min_bin, unsigned int max_bin) {
 	double min_z, max_z, tmp;
-	bin_to_z (bin, min_z, tmp);
-	bin_to_z (bin+1, tmp, max_z);
+	bin_to_z (min_bin, resolution_, min_z, tmp);
+	bin_to_z (max_bin, resolution_, tmp, max_z);
 	return get_slice_z (min_z, max_z);
-	*/
 }
 
 vector<point3d> OctreeProcessor::get_slice_z (double min_z, double max_z) {
@@ -223,8 +331,8 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr OctreeProcessor::tree_to_pointcloud () {
 pcl::PointCloud<pcl::PointXYZ>::Ptr OctreeProcessor::slices_to_pointcloud (vector<Mat> slices) {
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
 	for (size_t z = 0; z < slices.size(); ++z) {
-		for (size_t x = 0; x < slices[z].cols; ++x) {
-			for (size_t y = 0; y < slices[z].rows; ++y) {
+		for (int x = 0; x < slices[z].cols; ++x) {
+			for (int y = 0; y < slices[z].rows; ++y) {
 				if (slices[z].at<unsigned char>(x, y) == 255) {
 					//point3d pt = voxel_coord_to_point (point3d(x, y, z), resolution_, min_);
 					//cloud->points.push_back (pcl::PointXYZ (pt.x(), pt.y(), pt.z()));
@@ -316,3 +424,112 @@ vector<Mat> OctreeProcessor::get_slice_2d_all () {
 	}
 	return slices;
 }
+
+bool OctreeProcessor::is_occupied_or_null (double x, double y, double z) {
+	OcTreeNode* node = tree->search(x, y, z);
+	if (node == NULL || tree->isNodeOccupied(node))
+		return true;
+	return false;
+}
+
+bool OctreeProcessor::is_occupied (point3d pt) {
+	return is_occupied (pt.x(), pt.y(), pt.z());
+}
+
+bool OctreeProcessor::is_occupied (double x, double y, double z) {
+	//cout << x << " " << y << " " << z << endl;
+	OcTreeNode* node = tree->search(x, y, z);
+	if (node != NULL && tree->isNodeOccupied(node))
+		return true;
+	return false;
+}
+
+bool OctreeProcessor::star_test (point3d pt) {
+	double x = pt.x(), y = pt.y(), z = pt.z(), r=resolution_;
+	if (//&& is_occupied_or_null (x, y, z+r)
+			//&& is_occupied_or_null (x, y, z-r)
+			 is_occupied_or_null (x, y+r, z)
+			&& is_occupied_or_null (x, y-r, z)
+			&& is_occupied_or_null (x+r, y, z)
+			&& is_occupied_or_null (x-r, y, z))
+		return true;
+
+	return false;
+}
+
+void OctreeProcessor::grow_cloud (vector<point3d> &in) {
+	double r=resolution_;
+	for (size_t i = 0; i < in.size(); ++i) {
+		double x = in[i].x(), y = in[i].y(), z = in[i].z();
+		if (is_occupied (x, y, z+r)) {
+			in.push_back (point3d(x, y, z+r));
+			grow_cloud (in);
+		}
+		if (is_occupied (x, y, z-r)) {
+			in.push_back (point3d(x, y, z-r));
+			grow_cloud (in);
+		}
+		if (is_occupied (x, y+r, z)) {
+			in.push_back (point3d(x, y+r, z));
+			grow_cloud (in);
+		}
+		if (is_occupied (x, y-r, z)) {
+			in.push_back (point3d(x, y-r, z));
+			grow_cloud (in);
+		}
+		if (is_occupied (x+r, y, z)) {
+			in.push_back (point3d(x+r, y, z));
+			grow_cloud (in);
+		}
+		if (is_occupied (x-r, y, z)) {
+			in.push_back (point3d(x-r, y, z));
+			grow_cloud (in);
+		}
+	}
+}
+
+// Takes as input a set of segments supposed to be in the walls
+Mat OctreeProcessor::classify_walls (vector<Point> walls_inliers) {
+	vector<Point> under_over_points;
+	Mat res = Mat::zeros (voxel_grid_size_.x(), voxel_grid_size_.x(), CV_8UC1);
+	cout << walls_inliers.size() << endl;
+	for (size_t i = 0; i < walls_inliers.size(); ++i) {
+		Point voxel = walls_inliers[i];
+		unsigned int under = 0, over = 0;
+		get_num_occupied_cells (voxel.x, voxel.y, under, over);
+		under_over_points.push_back (Point(under, over));
+		//res.at<unsigned char>(under, over) = 255;
+		//cout << "Coords: " << voxel.x << " " << voxel.y << endl;
+		//cout << "Nums: " << under << " " << over << endl;
+		
+	}
+	return res;
+	/*
+	Mat labels;
+	int attempts = 3;
+	vector<Point> centers;
+	CvTermCriteria crit;
+	crit.type = CV_TERMCRIT_EPS;
+	crit.max_iter = 300;
+	crit.epsilon = 0.9;
+	kmeans(under_over_points, 5, labels, crit, attempts, KMEANS_PP_CENTERS, centers);
+	*/
+}
+
+void OctreeProcessor::get_num_occupied_cells (double x, double y,
+																							 unsigned int &under,
+																							 unsigned int &over) {
+	for (unsigned int z = 0; z < voxel_grid_size_.z(); ++z) {
+		//cout << "Bin: " << z << endl;
+		point3d pt = voxel_coord_to_point (point3d(x, y, z), resolution_, min_);
+		//cout << "Z " << pt.z() << endl;
+		if (is_occupied (pt)) {
+			if ( z <= min_bin_)
+				++under;
+			else
+				++over;
+		}
+	}
+}
+
+//double kmeans(InputArray data, int K, InputOutputArray bestLabels, TermCriteria criteria, int attempts, int flags, OutputArray centers=noArray() )

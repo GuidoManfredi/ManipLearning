@@ -15,7 +15,12 @@ class OctreeProcessor
 {
 	public:
 		OctreeProcessor ();
+		void update_size ();
 		void load_tree (const char* path);
+
+		std::vector< std::vector<octomap::point3d> > get_interest_clouds ();		
+		std::vector<octomap::point3d> get_max_hist_cluster (std::vector<unsigned int> hist);
+		
 		std::vector<cv::Mat>	get_interest_areas (void);
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_to_pcl (std::vector<octomap::point3d> cloud);
 
@@ -28,10 +33,17 @@ class OctreeProcessor
 		std::vector<octomap::point3d> get_walls (std::vector<unsigned int> hist);
 		std::vector<octomap::point3d> get_open_areas (unsigned int num_free_voxels);
 		std::vector<octomap::point3d> get_non_open_areas (unsigned int num_free_voxels);
+		std::vector<octomap::point3d> get_noise ();
+		std::vector<octomap::point3d> get_noise (std::vector<octomap::point3d> points);
+		std::vector<octomap::point3d> get_out_of_bounds (octomap::point3d min,
+																										 octomap::point3d max);
 
 		std::vector<octomap::point3d> get_slice_xy (std::vector<double> x, std::vector<double> y);
 		std::vector<octomap::point3d> get_slice_z (unsigned int bin);
+		std::vector<octomap::point3d> get_slice_z (unsigned int min_bin, unsigned int max_bin);
 		std::vector<octomap::point3d> get_slice_z (double min_z, double max_z);
+		
+		void denoise_octomap ();
 		
 		unsigned int num_occupied_above (std::vector<octomap::point3d> slice);
 		unsigned int num_free_above (std::vector<octomap::point3d> slice);
@@ -45,15 +57,29 @@ class OctreeProcessor
 		cv::Mat project_slices_2d (std::vector<octomap::point3d> slice);
 		cv::Mat get_slice_2d (double z);
 		std::vector<cv::Mat> get_slice_2d_all ();
-		
+
+		void grow_cloud (std::vector<octomap::point3d> &in);
+
+		//std::vector< std::vector<octomap::point3d> >
+		cv::Mat
+			classify_walls (std::vector<cv::Point> walls_inliers);
+		void get_num_occupied_cells (double x, double y,
+																 unsigned int &under,
+																 unsigned int &over);
+
 	private:
+		octomap::point3d voxel_grid_size_;
 		bool is_free_above (octomap::point3d pt, unsigned int num_free_voxels);
+		bool is_occupied_or_null (double x, double y, double z);
+		bool is_occupied (double x, double y, double z);
+		bool is_occupied (octomap::point3d pt);
+		bool star_test (octomap::point3d pt);
 	
 		octomap::OcTree* tree;
 		double resolution_;
 		unsigned int maxDepth_;
 		octomap::point3d min_, max_;
-		octomap::point3d voxel_grid_size_;
+		unsigned int min_bin_;
 		
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
 };

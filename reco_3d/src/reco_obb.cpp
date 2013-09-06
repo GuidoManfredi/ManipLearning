@@ -21,7 +21,7 @@ bool recognize (reco_3d::OrientedBoundingBoxRecognition::Request &req,
 	std::vector< std::pair<std::string, float> > candidats;
 	std::vector<std::string> names;
 	std::vector<float> distances;
-
+	
 	Cloud::Ptr cloud (new Cloud);
 	pcl::fromROSMsg(req.cluster, *cloud);
 	//obb_computer.compute_obb_pca_hull (cloud, q, t, dims);
@@ -35,16 +35,19 @@ bool recognize (reco_3d::OrientedBoundingBoxRecognition::Request &req,
 	res.pose.pose.orientation.z = q.z();
 	res.pose.pose.orientation.w = q.w();
 	res.box_dims.x = dims(0); res.box_dims.y = dims(1); res.box_dims.z = dims(2);
-
-	candidats = reco.recognize (dims(0), dims(1), dims(2), 0.99, req.names);
+	cout << dims(0) << " " << dims(1) << " " << dims(2) << endl;
+	if (req.names.size () == 0 )
+		candidats = reco.recognize (dims(0), dims(1), dims(2), 0.99);
+	else
+		candidats = reco.recognize (dims(0), dims(1), dims(2), 0.99, req.names);
 	for (size_t i = 0; i < candidats.size(); ++i) {
 		names.push_back (candidats[i].first);
 		distances.push_back (candidats[i].second);
 	}
 	res.names = names;
-	res.distances = distances; 
+	res.distances = distances;
 	res.result = 0;
-	
+
 	return true;
 }
 
