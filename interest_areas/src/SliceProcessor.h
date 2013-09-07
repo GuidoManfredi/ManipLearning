@@ -42,6 +42,7 @@ class SliceProcessor
 		void get_bounding_lines (cv::Vec4i segment, double delta,
 														int width, int height,
 														 cv::Vec4i &line1, cv::Vec4i &line2);
+		bool is_up (cv::Vec4i line, cv::Point p);
 		cv::Vec4i normal_at_point (double x, double y, double delta,
 																 double a, double b);
 		void normal_equation (double x, double y, double a1, double b1,

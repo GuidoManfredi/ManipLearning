@@ -62,11 +62,16 @@ class OctreeProcessor
 
 		//std::vector< std::vector<octomap::point3d> >
 		cv::Mat
-			classify_walls (std::vector<cv::Point> walls_inliers);
+			find_clusters (std::vector<cv::Point> walls_inliers);
+		cv::Point get_num_occupied_cells (cv::Point pt);
 		void get_num_occupied_cells (double x, double y,
 																 unsigned int &under,
 																 unsigned int &over);
 
+		void classify (std::vector<cv::Point> points, cv::Mat centers, cv::Mat &labels);
+		void get_labels (std::vector<cv::Point> pts, cv::Mat centers,
+										cv::Mat &labels);
+		int get_label (cv::Point pt, cv::Mat centers);
 	private:
 		octomap::point3d voxel_grid_size_;
 		bool is_free_above (octomap::point3d pt, unsigned int num_free_voxels);

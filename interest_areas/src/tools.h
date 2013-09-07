@@ -1,6 +1,13 @@
 #pragma once
 
+#include <opencv2/core/core.hpp>
 #include <octomap/octomap.h>
+
+cv::Mat draw_points_labels (unsigned width, unsigned height, 
+														std::vector<cv::Point> pts,
+														cv::Mat labels);
+
+cv::Mat points_to_mat (int width, int height, std::vector<cv::Point> points);
 
 octomap::point3d point_to_voxel_coord (octomap::point3d point,
 																											  double resolution,

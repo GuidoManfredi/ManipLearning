@@ -489,7 +489,7 @@ void OctreeProcessor::grow_cloud (vector<point3d> &in) {
 }
 
 // Takes as input a set of segments supposed to be in the walls
-Mat OctreeProcessor::classify_walls (vector<Point> walls_inliers) {
+Mat OctreeProcessor::find_clusters (vector<Point> walls_inliers) {
 	vector<Point> under_over_points;
 	Mat res = Mat::zeros (voxel_grid_size_.x(), voxel_grid_size_.x(), CV_8UC1);
 	cout << walls_inliers.size() << endl;
@@ -501,19 +501,56 @@ Mat OctreeProcessor::classify_walls (vector<Point> walls_inliers) {
 		//res.at<unsigned char>(under, over) = 255;
 		//cout << "Coords: " << voxel.x << " " << voxel.y << endl;
 		//cout << "Nums: " << under << " " << over << endl;
-		
 	}
-	return res;
-	/*
+	
+	Mat data (under_over_points.size(), 2, CV_32F);
+	for (int i = 0; i < data.rows; ++i) {
+		data.at<float>(i, 0) = under_over_points[i].x;
+		data.at<float>(i, 1) = under_over_points[i].y;
+	}
+	int num_classes = 5;
 	Mat labels;
-	int attempts = 3;
-	vector<Point> centers;
-	CvTermCriteria crit;
-	crit.type = CV_TERMCRIT_EPS;
-	crit.max_iter = 300;
-	crit.epsilon = 0.9;
-	kmeans(under_over_points, 5, labels, crit, attempts, KMEANS_PP_CENTERS, centers);
-	*/
+	TermCriteria crit (CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 1000, 0.0001);
+	int attempts = 5;
+	Mat centers;
+	kmeans(data, num_classes, labels, crit, attempts, KMEANS_PP_CENTERS, centers);
+
+	return centers;
+}
+
+void OctreeProcessor::classify (vector<Point> points, Mat centers, Mat &labels) {
+	vector<Point> under_over_vec;
+	for (size_t i = 0; i < points.size(); ++i) {
+		Point under_over;
+		under_over = get_num_occupied_cells (points[i]);
+		under_over_vec.push_back (under_over);
+	}
+	get_labels (under_over_vec, centers, labels);
+}
+
+void OctreeProcessor::get_labels (vector<Point> under_over, Mat centers,
+																Mat &labels) {
+	labels = Mat::zeros (under_over.size(), 1, CV_8UC1);
+	for (size_t i = 0; i < under_over.size(); ++i) {
+		labels.at<unsigned char>(i) = get_label (under_over[i], centers);
+	}
+}
+
+int OctreeProcessor::get_label (Point pt, Mat centers) {
+	int idx = -1;
+	vector<double> dist;
+	for (unsigned int i = 0; i < centers.rows; ++i) {
+		Point center (centers.at<float>(i,0), centers.at<float>(i,1));
+		dist.push_back ( norm (pt-center) );
+	}
+	idx = *std::min_element(dist.begin(), dist.end());
+	return idx;
+}
+
+Point OctreeProcessor::get_num_occupied_cells (Point pt) {
+	unsigned int under, over;
+	get_num_occupied_cells (pt.x, pt.y, under, over);
+	return Point(under, over);
 }
 
 void OctreeProcessor::get_num_occupied_cells (double x, double y,
